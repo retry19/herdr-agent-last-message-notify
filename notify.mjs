@@ -1,6 +1,6 @@
 // Herdr event hook: send a desktop notification that includes the last
 // agent message when an agent is done or waits for input.
-import { spawnSync } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { cleanMarkdown, formatBody, formatLocation, formatTitle, truncate } from "./format.mjs";
@@ -25,6 +25,9 @@ const config = {
   appName: process.env.NOTIFY_APP_NAME || "Herdr",
   icon: process.env.NOTIFY_ICON || "",
   urgencyBlocked: process.env.NOTIFY_URGENCY_BLOCKED || "critical",
+  clickToFocus: flagEnv("NOTIFY_CLICK_TO_FOCUS", false),
+  clickDesktopEntry: process.env.NOTIFY_CLICK_DESKTOP_ENTRY || "",
+  clickTimeoutS: intEnv("NOTIFY_CLICK_TIMEOUT_S", 600),
   debug: flagEnv("NOTIFY_DEBUG", false),
 };
 
@@ -90,13 +93,13 @@ async function main() {
   if (isDuplicate(paneId, status, body)) {
     return;
   }
-  send({ paneId, status, title, body });
+  await send({ paneId, status, title, body });
 }
 
-function send({ paneId, status, title, body }) {
+async function send({ paneId, status, title, body }) {
   const backend = config.backend === "auto" ? autoBackend() : config.backend;
   if (backend === "notify-send") {
-    sendNotifySend({ paneId, status, title, body });
+    await sendNotifySend({ paneId, status, title, body });
   } else if (backend === "osascript") {
     run("osascript", [
       "-e",
@@ -108,7 +111,7 @@ function send({ paneId, status, title, body }) {
   }
 }
 
-function sendNotifySend({ paneId, status, title, body }) {
+async function sendNotifySend({ paneId, status, title, body }) {
   // Replace the previous notification of the same pane, so only one stays on screen.
   const ids = readState("notification-ids.json", {});
   const args = ["--app-name", config.appName, "--print-id"];
@@ -119,13 +122,101 @@ function sendNotifySend({ paneId, status, title, body }) {
   if (ids[paneId]) {
     args.push("--replace-id", String(ids[paneId]));
   }
-  args.push("--", title, escapeMarkup(body));
-  const result = run("notify-send", args);
-  const id = Number.parseInt(result?.stdout ?? "", 10);
-  if (Number.isFinite(id)) {
-    ids[paneId] = id;
-    writeState("notification-ids.json", ids);
+  if (config.clickToFocus) {
+    // A click on the notification sends the "default" action.
+    args.push("--action", "default=Open", "--wait");
+    if (config.clickDesktopEntry) {
+      // GNOME and KDE show the window of this application on a click.
+      args.push("--hint", `string:desktop-entry:${config.clickDesktopEntry}`);
+    }
   }
+  args.push("--", title, escapeMarkup(body));
+
+  const saveId = (id) => {
+    if (Number.isFinite(id)) {
+      const latest = readState("notification-ids.json", {});
+      latest[paneId] = id;
+      writeState("notification-ids.json", latest);
+    }
+  };
+
+  if (!config.clickToFocus) {
+    const result = run("notify-send", args);
+    saveId(Number.parseInt(result?.stdout ?? "", 10));
+    return;
+  }
+
+  const action = hasCommand("gjs")
+    ? await waitForAction("gjs", [
+        join(import.meta.dirname, "dbus-notify.js"),
+        JSON.stringify({
+          app_name: config.appName,
+          replaces_id: ids[paneId] || 0,
+          summary: title,
+          body: escapeMarkup(body),
+          urgency: status === "blocked" ? urgencyByte(config.urgencyBlocked) : 1,
+          desktop_entry: config.clickDesktopEntry,
+          // With a desktop entry, GNOME Shell shows the window of the
+          // terminal on a click, but only if the notification has no
+          // default action. The plugin then gets "dismissed".
+          raise_app: Boolean(config.clickDesktopEntry),
+          timeout_s: config.clickTimeoutS,
+        }),
+      ], saveId)
+    : await waitForAction("notify-send", args, saveId);
+  if (action === "default" || action === "dismissed") {
+    herdr(["agent", "focus", paneId]);
+  }
+}
+
+// Starts the command and returns the name of the action that the user
+// clicked. Returns undefined when the notification closes or when the
+// timeout expires. The first output line is the notification ID.
+// notify-send with --wait and dbus-notify.js use this output format.
+function waitForAction(command, args, onId) {
+  return new Promise((resolve) => {
+    const child = spawn(command, args, { stdio: ["ignore", "pipe", "pipe"] });
+    let buffer = "";
+    let id;
+    let action;
+    const timer =
+      config.clickTimeoutS > 0
+        ? setTimeout(() => child.kill("SIGTERM"), config.clickTimeoutS * 1000)
+        : undefined;
+    child.stdout.setEncoding("utf8");
+    child.stdout.on("data", (chunk) => {
+      buffer += chunk;
+      let newline;
+      while ((newline = buffer.indexOf("\n")) !== -1) {
+        const line = buffer.slice(0, newline).trim();
+        buffer = buffer.slice(newline + 1);
+        if (!line) continue;
+        if (id === undefined && /^\d+$/.test(line)) {
+          id = Number.parseInt(line, 10);
+          onId(id);
+        } else if (action === undefined) {
+          action = line;
+          child.kill("SIGTERM");
+        }
+      }
+    });
+    child.stderr.on("data", (chunk) => process.stderr.write(chunk));
+    child.on("error", (error) => {
+      console.error(`${command} failed to start: ${error.message}`);
+    });
+    child.on("close", () => {
+      clearTimeout(timer);
+      const rest = buffer.trim();
+      if (action === undefined && rest && !/^\d+$/.test(rest)) {
+        action = rest;
+      }
+      resolve(action);
+    });
+  });
+}
+
+function urgencyByte(urgency) {
+  return { low: 0, normal: 1, critical: 2 }[urgency] ?? 1;
 }
 
 function autoBackend() {
