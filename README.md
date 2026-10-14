@@ -35,16 +35,17 @@ The plugin does not send a notification for the pane that you look at now. Herdr
 
 ## Install the plugin
 
-1. Link the plugin directory:
+1. Install the plugin from GitHub:
 
    ```bash
-   herdr plugin link /path/to/herdr-descriptive-notification
+   herdr plugin install retry19/herdr-agent-last-message-notify
    ```
 
-2. Copy the example configuration:
+2. Download the example configuration to the config directory of the plugin:
 
    ```bash
-   cp .env.example "$(herdr plugin config-dir agent-last-message-notify)/.env"
+   curl -fsSL https://raw.githubusercontent.com/retry19/herdr-agent-last-message-notify/master/.env.example \
+     -o "$(herdr plugin config-dir agent-last-message-notify)/.env"
    ```
 
 3. Disable the toasts of Herdr in `~/.config/herdr/config.toml`:
@@ -61,6 +62,39 @@ The plugin does not send a notification for the pane that you look at now. Herdr
    ```
 
 If you do not do step 3, you get two notifications for each event. The sounds of Herdr do not change.
+
+To get the latest version of the plugin, run the following command:
+
+```bash
+herdr plugin update agent-last-message-notify
+```
+
+### Install from a local clone
+
+Use this procedure to change the code of the plugin.
+
+1. Clone the repository:
+
+   ```bash
+   git clone git@github.com:retry19/herdr-agent-last-message-notify.git
+   cd herdr-agent-last-message-notify
+   ```
+
+2. Link the plugin directory:
+
+   ```bash
+   herdr plugin link .
+   ```
+
+3. Copy the example configuration:
+
+   ```bash
+   cp .env.example "$(herdr plugin config-dir agent-last-message-notify)/.env"
+   ```
+
+4. Do steps 3 and 4 of the procedure above.
+
+Herdr does not install a plugin over a linked plugin with the same ID. Before you install from GitHub, run `herdr plugin unlink agent-last-message-notify`.
 
 ## Test the plugin
 
