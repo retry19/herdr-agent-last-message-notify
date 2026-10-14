@@ -3,7 +3,7 @@
 import { spawnSync } from "node:child_process";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { cleanMarkdown, formatBody, formatLocation, truncate } from "./format.mjs";
+import { cleanMarkdown, formatBody, formatLocation, formatTitle, truncate } from "./format.mjs";
 import { lastAgentMessage } from "./transcript.mjs";
 
 const herdrBin = process.env.HERDR_BIN_PATH || "herdr";
@@ -20,6 +20,7 @@ const config = {
   showWorkspaceNumber: flagEnv("NOTIFY_SHOW_WORKSPACE_NUMBER", true),
   locationSeparator: process.env.NOTIFY_LOCATION_SEPARATOR ?? " · ",
   locationSuffix: process.env.NOTIFY_LOCATION_SUFFIX ?? "",
+  titleCase: (process.env.NOTIFY_TITLE_CASE || "none").trim().toLowerCase(),
   backend: process.env.NOTIFY_BACKEND || "auto",
   appName: process.env.NOTIFY_APP_NAME || "Herdr",
   icon: process.env.NOTIFY_ICON || "",
@@ -78,7 +79,7 @@ async function main() {
     console.error(`cannot read transcript: ${error.message}`);
   }
 
-  const title = `${agent} ${statusText(status)}`;
+  const title = formatTitle(`${agent} ${statusText(status)}`, config.titleCase);
   const location = formatLocation(workspace, tab, {
     showWorkspaceNumber: config.showWorkspaceNumber,
     separator: config.locationSeparator,

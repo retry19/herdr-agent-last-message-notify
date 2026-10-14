@@ -4,7 +4,7 @@ import { mkdtempSync, mkdirSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { claudeLastMessage, codexLastMessage, lastAgentMessage, readTailLines } from "../transcript.mjs";
-import { cleanMarkdown, formatBody, formatLocation, truncate } from "../format.mjs";
+import { cleanMarkdown, formatBody, formatLocation, formatTitle, truncate } from "../format.mjs";
 
 const assistant = (content, extra = {}) => ({ type: "assistant", message: { role: "assistant", content }, ...extra });
 
@@ -92,4 +92,11 @@ test("formatBody adds the suffix only when a message follows", () => {
   assert.equal(formatBody("shop · 2 · tab", "Done.", ":"), "shop · 2 · tab:\nDone.");
   assert.equal(formatBody("shop · 2 · tab", "", ":"), "shop · 2 · tab");
   assert.equal(formatBody("", "Done.", ":"), "Done.");
+});
+
+test("formatTitle makes the first letter of each word uppercase in title mode", () => {
+  assert.equal(formatTitle("claude finished", "title"), "Claude Finished");
+  assert.equal(formatTitle("codex needs input", "title"), "Codex Needs Input");
+  assert.equal(formatTitle("claude finished", "none"), "claude finished");
+  assert.equal(formatTitle("claude finished"), "claude finished");
 });

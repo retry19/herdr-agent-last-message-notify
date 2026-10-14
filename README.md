@@ -92,6 +92,7 @@ Set these variables in `.env` in the config directory of the plugin.
 | `NOTIFY_DELAY_MS` | The wait time before the notification, in milliseconds. | `1000` |
 | `NOTIFY_MAX_CHARS` | The maximum length of the message. `0` shows the full message. | `300` |
 | `NOTIFY_WHEN_FOCUSED` | `1` also sends a notification for the focused pane. | `0` |
+| `NOTIFY_TITLE_CASE` | The case of the title. `none` keeps the title as it is. `title` makes the first letter of each word uppercase. | `none` |
 | `NOTIFY_SHOW_WORKSPACE_NUMBER` | `1` shows the workspace number between the workspace label and the tab label. `0` hides it. | `1` |
 | `NOTIFY_LOCATION_SEPARATOR` | The text between the parts of the location line. Use quotes to keep spaces, for example `" · "`. | `" · "` |
 | `NOTIFY_LOCATION_SUFFIX` | The text after the location line, for example `:`. The plugin adds it only when a message follows. | empty |
@@ -102,6 +103,13 @@ Set these variables in `.env` in the config directory of the plugin.
 | `NOTIFY_DEBUG` | `1` writes the last event to `last-invocation.json` in the state directory. | `0` |
 
 The `herdr` backend uses `herdr notification show`. This backend uses the `[ui.toast]` delivery of Herdr, and Herdr cuts the body to 240 characters. Thus, do not set `delivery = "off"` with this backend.
+
+Examples of the title:
+
+| Configuration | Result |
+|---|---|
+| Default | `claude finished` |
+| `NOTIFY_TITLE_CASE=title` | `Claude Finished` |
 
 Examples of the location line:
 
