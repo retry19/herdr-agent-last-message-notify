@@ -1,0 +1,16 @@
+id = "agent-last-message-notify"
+name = "Agent Last Message Notify"
+version = "0.1.0"
+min_herdr_version = "0.9.0"
+description = "Show the last agent message in the desktop notification when an agent is done or waits for input."
+platforms = ["linux", "macos"]
+
+[[events]]
+on = "pane.agent_status_changed"
+command = ["node", "notify.mjs"]
+
+[[actions]]
+id = "test"
+title = "Send a test notification for the focused pane"
+contexts = ["workspace"]
+command = ["node", "notify.mjs", "--test"]
